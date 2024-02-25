@@ -3,31 +3,46 @@
 import asyncio
 import websockets
 import json
-from connect4 import PLAYER1, PLAYER2
+import itertools
+from connect4 import PLAYER1, PLAYER2, Connect4
 
 async def handler(websocket):
-    for player, column, row in [
-        (PLAYER1, 3, 0),
-        (PLAYER2, 3, 1),
-        (PLAYER1, 4, 0),
-        (PLAYER2, 4, 1),
-        (PLAYER1, 2, 0),
-        (PLAYER2, 1, 0),
-        (PLAYER1, 5, 0),
-    ]:
+    game = Connect4()
+
+    turns = itertools.cycle([PLAYER1, PLAYER2])
+    player = next(turns)
+
+    async for message in websocket:
+        event = json.loads(message)
+        assert event["type"] == "play"
+        column = event["column"]
+
+        try:
+            row = game.play(player, column)
+        except RuntimeError as exc:
+            event = {
+                "type": "error",
+                "message": str(exc)
+            }
+            await websocket.send(json.dumps(event))
+            continue
+
         event = {
             "type": "play",
             "player": player,
             "column": column,
-            "row": row,
+            "row": row
         }
         await websocket.send(json.dumps(event))
-        await asyncio.sleep(0.5)
-    event = {
-        "type": "win",
-        "player": PLAYER1,
-    }
-    await websocket.send(json.dumps(event))
+
+        if game.winner is not None:
+            event = {
+                "type": "win",
+                "player": game.winner
+            }
+            await websocket.send(json.dumps(event))
+
+        player = next(turns)
 
 async def main():
     async with websockets.serve(handler, "", 8001):
