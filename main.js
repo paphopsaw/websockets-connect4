@@ -6,6 +6,7 @@ window.addEventListener("DOMContentLoaded", () => {
   createBoard(board);
 
   const websocket = new WebSocket("ws://localhost:8001/");
+  initGame(websocket);
   receiveMoves(board, websocket);
   sendMoves(board, websocket);
 });
@@ -33,6 +34,9 @@ function receiveMoves(board, websocket) {
   websocket.addEventListener("message", ({ data }) => {
     const event = JSON.parse(data);
     switch (event.type) {
+      case "init":
+        document.querySelector(".join").href = "?join=" + event.join;
+        break;
       case "play":
         playMove(board, event.player, event.column, event.row);
         break;
@@ -48,3 +52,15 @@ function receiveMoves(board, websocket) {
     }
   });
 }
+
+function initGame(websocket) {
+  websocket.addEventListener("open", () => {
+    const params = new URLSearchParams(window.location.search);
+    const event = { type: "init" };
+    if (params.has("join")) {
+      event.join = params.get("join")
+    }
+    websocket.send(JSON.stringify(event));
+  });
+}
+
